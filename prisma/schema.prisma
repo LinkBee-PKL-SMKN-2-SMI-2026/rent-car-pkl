@@ -1,0 +1,159 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Users {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(STAFF)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bookings      Bookings[]
+  activityLogs  Activity_Logs[]
+}
+
+enum Role {
+  ADMIN
+  STAFF
+}
+
+model Customers {
+  id          String   @id @default(uuid())
+  name        String
+  phone       String   @unique
+  email       String?
+  address     String?
+  companyName String?
+  notes       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bookings Bookings[]
+}
+
+model VehicleCategories {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  vehicles Vehicles[]
+}
+
+model Vehicles {
+  id              String   @id @default(uuid())
+  name            String
+  brand           String?
+  model           String?
+  year            Int?
+  plateNumber     String   @unique
+  categoryId      String
+  transmission    Transmission @default(AUTOMATIC)
+  fuelType        String?
+  seatingCapacity Int?
+  imageUrl        String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  category      VehicleCategories @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  rates         VehicleRates[]
+  bookingItems  BookingItems[]
+}
+
+enum Transmission {
+  MANUAL
+  AUTOMATIC
+}
+
+model VehicleRates {
+  id           String       @id @default(uuid())
+  vehicleId    String
+  durationType DurationType
+  withDriver   Boolean      @default(false)
+  price        Decimal      @db.Decimal(12, 2)
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  vehicle Vehicles @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([vehicleId, durationType, withDriver])
+}
+
+enum DurationType {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+model Bookings {
+  id              String        @id @default(uuid())
+  bookingCode     String        @unique
+  customerId      String
+  createdBy       String?
+  status          BookingStatus @default(PENDING)
+  startDate       DateTime
+  endDate         DateTime
+  pickupLocation  String?
+  dropoffLocation String?
+  needsDriver     Boolean       @default(false)
+  needsFuel       Boolean       @default(false)
+  basePrice       Decimal       @db.Decimal(12, 2)
+  totalPrice      Decimal       @db.Decimal(12, 2)
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  customer Customers @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  createdByUser Users? @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+  items BookingItems[]
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+model BookingItems {
+  id           String       @id @default(uuid())
+  bookingId    String
+  vehicleId    String
+  durationType DurationType
+  days         Int
+  unitPrice    Decimal      @db.Decimal(12, 2)
+  subtotal     Decimal      @db.Decimal(12, 2)
+
+  booking Bookings @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  vehicle Vehicles @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+}
+
+model Activity_Logs {
+  id        String   @id @default(uuid())
+  action    String
+  entity    String
+  entityId  String?
+  detail    Json?
+  userId    String
+  createdAt DateTime @default(now())
+
+  user Users @relation(fields: [userId], references: [id], onDelete: Restrict)
+}

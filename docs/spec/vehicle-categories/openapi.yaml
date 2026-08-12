@@ -1,0 +1,388 @@
+openapi: 3.1.0
+info:
+  title: Vehicle Categories API
+  version: 1.0.0
+  description: Vehicle category management — public catalog listing and admin CRUD
+servers:
+  - url: http://localhost:3000/api
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+paths:
+  /vehicle-categories:
+    get:
+      summary: List vehicle categories
+      description: Public endpoint. Paginated list of vehicle categories.
+      tags:
+        - Vehicle Categories
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by name or description (case-insensitive)
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+          description: Sort by name
+        - name: isActive
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: Filter by active status
+      responses:
+        "200":
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/CategoryWithCount"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+
+    post:
+      summary: Create a vehicle category
+      description: Requires ADMIN role.
+      tags:
+        - Vehicle Categories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCategoryRequest"
+      responses:
+        "201":
+          description: Category created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Category"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Category name already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /vehicle-categories/{id}:
+    get:
+      summary: Get category by ID
+      description: Public endpoint. Includes vehicle count and vehicle list.
+      tags:
+        - Vehicle Categories
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Category detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: "#/components/schemas/CategoryWithCount"
+                          - type: object
+                            properties:
+                              vehicles:
+                                type: array
+                                items:
+                                  $ref: "#/components/schemas/VehicleRef"
+        "404":
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      summary: Update a vehicle category
+      description: Requires ADMIN role. Partial update — send only fields to change. Omit a field to keep its current value; send null or an empty string to clear an optional field.
+      tags:
+        - Vehicle Categories
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCategoryRequest"
+      responses:
+        "200":
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Category"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Category name already used by another category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      summary: Delete a vehicle category
+      description: Requires ADMIN role. Fails if the category still has vehicles.
+      tags:
+        - Vehicle Categories
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Category deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Category"
+        "400":
+          description: Category still has vehicles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token returned by login
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      description: Items per page
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Category ID
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Insufficient role (requires ADMIN)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          description: Response payload
+      required:
+        - success
+        - message
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          description: Field-level validation errors
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+        - success
+        - message
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - isActive
+        - createdAt
+        - updatedAt
+
+    CategoryWithCount:
+      allOf:
+        - $ref: "#/components/schemas/Category"
+        - type: object
+          properties:
+            _count:
+              type: object
+              properties:
+                vehicles:
+                  type: integer
+              required:
+                - vehicles
+
+    VehicleRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        plateNumber:
+          type: string
+        isActive:
+          type: boolean
+      required:
+        - id
+        - name
+        - plateNumber
+        - isActive
+
+    CreateCategoryRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 3
+          description: Category name (min 3 characters)
+        description:
+          type: string
+          description: Optional description
+
+    UpdateCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          description: Category name (min 3 characters)
+        description:
+          type: string
+          nullable: true
+          description: Optional description. Send null or "" to clear
+        isActive:
+          type: boolean
+          description: Active status

@@ -1,0 +1,407 @@
+openapi: 3.1.0
+info:
+  title: Vehicle Rates API
+  version: 1.0.0
+  description: Vehicle rate management — pricing per duration type (DAILY/WEEKLY/MONTHLY) and driver option
+servers:
+  - url: http://localhost:3000/api
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+paths:
+  /vehicle-rates:
+    get:
+      summary: List vehicle rates
+      description: Requires authentication.
+      tags:
+        - Vehicle Rates
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: vehicleId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by vehicle
+        - name: durationType
+          in: query
+          schema:
+            type: string
+            enum: [DAILY, WEEKLY, MONTHLY]
+          description: Filter by duration type
+        - name: withDriver
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: Filter by driver option
+      responses:
+        "200":
+          description: Paginated rate list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/RateWithVehicle"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      summary: Create a vehicle rate
+      description: Requires ADMIN role.
+      tags:
+        - Vehicle Rates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRateRequest"
+      responses:
+        "201":
+          description: Rate created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VehicleRate"
+        "400":
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Rate for this vehicle/duration/driver combination already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /vehicle-rates/{id}:
+    get:
+      summary: Get rate by ID
+      description: Requires authentication. Includes vehicle info.
+      tags:
+        - Vehicle Rates
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Rate detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/RateWithVehicle"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Rate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      summary: Update a vehicle rate
+      description: Requires ADMIN role. Partial update — send only fields to change. Omit a field to keep its current value.
+      tags:
+        - Vehicle Rates
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRateRequest"
+      responses:
+        "200":
+          description: Rate updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VehicleRate"
+        "400":
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Rate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Rate combination already used by another rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      summary: Delete a vehicle rate
+      description: Requires ADMIN role.
+      tags:
+        - Vehicle Rates
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Rate deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VehicleRate"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Rate not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token returned by login
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      description: Items per page
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Rate ID
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Insufficient role (requires ADMIN)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          description: Response payload
+      required:
+        - success
+        - message
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          description: Field-level validation errors
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+        - success
+        - message
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+
+    VehicleRate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        vehicleId:
+          type: string
+          format: uuid
+        durationType:
+          type: string
+          enum: [DAILY, WEEKLY, MONTHLY]
+        withDriver:
+          type: boolean
+        price:
+          type: number
+          format: decimal
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - vehicleId
+        - durationType
+        - withDriver
+        - price
+        - isActive
+        - createdAt
+        - updatedAt
+
+    VehicleRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        plateNumber:
+          type: string
+      required:
+        - id
+        - name
+        - plateNumber
+
+    RateWithVehicle:
+      allOf:
+        - $ref: "#/components/schemas/VehicleRate"
+        - type: object
+          properties:
+            vehicle:
+              $ref: "#/components/schemas/VehicleRef"
+          required:
+            - vehicle
+
+    CreateRateRequest:
+      type: object
+      required:
+        - vehicleId
+        - durationType
+        - price
+      properties:
+        vehicleId:
+          type: string
+          format: uuid
+          description: Vehicle ID
+        durationType:
+          type: string
+          enum: [DAILY, WEEKLY, MONTHLY]
+        withDriver:
+          type: boolean
+          default: false
+        price:
+          type: number
+          format: decimal
+          description: Price, must be greater than 0
+        isActive:
+          type: boolean
+          description: Active status
+
+    UpdateRateRequest:
+      type: object
+      properties:
+        vehicleId:
+          type: string
+          format: uuid
+        durationType:
+          type: string
+          enum: [DAILY, WEEKLY, MONTHLY]
+        withDriver:
+          type: boolean
+        price:
+          type: number
+          format: decimal
+          description: Price, must be greater than 0
+        isActive:
+          type: boolean

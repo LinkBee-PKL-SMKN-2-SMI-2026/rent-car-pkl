@@ -1,0 +1,188 @@
+openapi: 3.1.0
+info:
+  title: Activity Logs API
+  version: 1.0.0
+  description: Activity logging module — audit trail of user actions (CREATE, UPDATE, DELETE, LOGIN, LOGOUT)
+servers:
+  - url: http://localhost:3000/api
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+paths:
+  /activity-logs:
+    get:
+      summary: List activity logs
+      description: Requires authentication. Paginated audit trail with the acting user.
+      tags:
+        - Activity Logs
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by acting user
+        - name: action
+          in: query
+          schema:
+            type: string
+            enum: [CREATE, UPDATE, DELETE, LOGIN, LOGOUT]
+          description: Filter by action
+        - name: entity
+          in: query
+          schema:
+            type: string
+          description: Filter by entity (e.g. Vehicles, Bookings, Customers)
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter logs created since this date (inclusive)
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter logs created until this date (inclusive)
+      responses:
+        "200":
+          description: Paginated log list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/ActivityLog"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token returned by login
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      description: Items per page
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          description: Response payload
+      required:
+        - success
+        - message
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          description: Field-level validation errors
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+        - success
+        - message
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+
+    ActivityLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum: [CREATE, UPDATE, DELETE, LOGIN, LOGOUT]
+        entity:
+          type: string
+        entityId:
+          type: string
+          format: uuid
+          nullable: true
+        detail:
+          type: object
+          nullable: true
+          description: Additional JSON context (e.g. changed fields)
+        userName:
+          type: string
+          description: Name of the acting user
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - action
+        - entity
+        - entityId
+        - detail
+        - userName
+        - createdAt

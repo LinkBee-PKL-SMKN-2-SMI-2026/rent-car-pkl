@@ -1,0 +1,2915 @@
+openapi: 3.1.0
+info:
+  title: Auth API
+  version: 1.0.0
+  description: Authentication module — user registration, login, and profile retrieval
+servers:
+  - url: http://localhost:3000/api
+    description: Local development
+tags:
+  - name: Auth
+    x-displayName: Auth
+  - name: Vehicle Categories
+    x-displayName: Vehicle Categories
+  - name: Vehicles
+    x-displayName: Vehicles
+  - name: Vehicle Rates
+    x-displayName: Vehicle Rates
+  - name: Customers
+    x-displayName: Customers
+  - name: Bookings
+    x-displayName: Bookings
+  - name: Activity Logs
+    x-displayName: Activity Logs
+paths:
+  /auth/register:
+    post:
+      summary: Register a new user
+      description: Create a user account. Default role is STAFF.
+      tags:
+        - Auth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Auth_API_RegisterRequest'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Auth_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Auth_API_AuthResult'
+        '409':
+          description: Email is already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Auth_API_ErrorResponse'
+  /auth/login:
+    post:
+      summary: Login
+      description: Authenticate with email and password to get access and refresh tokens
+      tags:
+        - Auth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Auth_API_LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Auth_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Auth_API_AuthResult'
+        '401':
+          description: Invalid email or password, or inactive account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Auth_API_ErrorResponse'
+  /auth/me:
+    get:
+      summary: Get current user profile
+      description: Retrieve the authenticated user's own profile
+      tags:
+        - Auth
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Auth_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Auth_API_User'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Auth_API_ErrorResponse'
+      security:
+        - Auth_API_BearerAuth: []
+  /vehicle-categories:
+    get:
+      summary: List vehicle categories
+      description: Public endpoint. Paginated list of vehicle categories.
+      tags:
+        - Vehicle Categories
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Vehicle_Categories_API_PageParam'
+        - $ref: '#/components/parameters/Vehicle_Categories_API_LimitParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by name or description (case-insensitive)
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: asc
+          description: Sort by name
+        - name: isActive
+          in: query
+          schema:
+            type: string
+            enum:
+              - 'true'
+              - 'false'
+          description: Filter by active status
+      responses:
+        '200':
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicle_Categories_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: >-
+                            #/components/schemas/Vehicle_Categories_API_CategoryWithCount
+                      pagination:
+                        $ref: '#/components/schemas/Vehicle_Categories_API_Pagination'
+    post:
+      summary: Create a vehicle category
+      description: Requires ADMIN role.
+      tags:
+        - Vehicle Categories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: >-
+                #/components/schemas/Vehicle_Categories_API_CreateCategoryRequest
+      responses:
+        '201':
+          description: Category created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicle_Categories_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Vehicle_Categories_API_Category'
+        '401':
+          $ref: '#/components/responses/Vehicle_Categories_API_Unauthorized'
+        '403':
+          $ref: '#/components/responses/Vehicle_Categories_API_Forbidden'
+        '409':
+          description: Category name already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle_Categories_API_ErrorResponse'
+      security:
+        - Vehicle_Categories_API_BearerAuth: []
+  /vehicle-categories/{id}:
+    get:
+      summary: Get category by ID
+      description: Public endpoint. Includes vehicle count and vehicle list.
+      tags:
+        - Vehicle Categories
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Vehicle_Categories_API_IdParam'
+      responses:
+        '200':
+          description: Category detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicle_Categories_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: >-
+                              #/components/schemas/Vehicle_Categories_API_CategoryWithCount
+                          - type: object
+                            properties:
+                              vehicles:
+                                type: array
+                                items:
+                                  $ref: >-
+                                    #/components/schemas/Vehicle_Categories_API_VehicleRef
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle_Categories_API_ErrorResponse'
+    patch:
+      summary: Update a vehicle category
+      description: >-
+        Requires ADMIN role. Partial update — send only fields to change. Omit a
+        field to keep its current value; send null or an empty string to clear
+        an optional field.
+      tags:
+        - Vehicle Categories
+      parameters:
+        - $ref: '#/components/parameters/Vehicle_Categories_API_IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: >-
+                #/components/schemas/Vehicle_Categories_API_UpdateCategoryRequest
+      responses:
+        '200':
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicle_Categories_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Vehicle_Categories_API_Category'
+        '401':
+          $ref: '#/components/responses/Vehicle_Categories_API_Unauthorized'
+        '403':
+          $ref: '#/components/responses/Vehicle_Categories_API_Forbidden'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle_Categories_API_ErrorResponse'
+        '409':
+          description: Category name already used by another category
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle_Categories_API_ErrorResponse'
+      security:
+        - Vehicle_Categories_API_BearerAuth: []
+    delete:
+      summary: Delete a vehicle category
+      description: Requires ADMIN role. Fails if the category still has vehicles.
+      tags:
+        - Vehicle Categories
+      parameters:
+        - $ref: '#/components/parameters/Vehicle_Categories_API_IdParam'
+      responses:
+        '200':
+          description: Category deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicle_Categories_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Vehicle_Categories_API_Category'
+        '400':
+          description: Category still has vehicles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle_Categories_API_ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Vehicle_Categories_API_Unauthorized'
+        '403':
+          $ref: '#/components/responses/Vehicle_Categories_API_Forbidden'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle_Categories_API_ErrorResponse'
+      security:
+        - Vehicle_Categories_API_BearerAuth: []
+  /vehicles/available:
+    get:
+      summary: List available vehicles
+      description: >-
+        Public endpoint. Returns vehicles not booked (PENDING/CONFIRMED/ONGOING)
+        for the given date range.
+      tags:
+        - Vehicles
+      security: []
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Rental start date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Rental end date
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by category
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by name, brand, or plate number
+      responses:
+        '200':
+          description: Available vehicles
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicles_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: >-
+                            #/components/schemas/Vehicles_API_VehicleWithRelations
+                      summary:
+                        type: object
+                        properties:
+                          startDate:
+                            type: string
+                            format: date-time
+                          endDate:
+                            type: string
+                            format: date-time
+                          totalAvailable:
+                            type: integer
+                        required:
+                          - startDate
+                          - endDate
+                          - totalAvailable
+        '400':
+          description: Invalid date format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicles_API_ErrorResponse'
+  /vehicles:
+    get:
+      summary: List vehicles
+      description: >-
+        Public endpoint. Paginated catalog. If startDate and endDate are
+        provided, vehicles booked in that range are excluded.
+      tags:
+        - Vehicles
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Vehicles_API_PageParam'
+        - $ref: '#/components/parameters/Vehicles_API_LimitParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by name, plate number, or brand
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: asc
+          description: Sort by name
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by category
+        - name: transmission
+          in: query
+          schema:
+            type: string
+            enum:
+              - MANUAL
+              - AUTOMATIC
+          description: Filter by transmission
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Exclude vehicles booked since this date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Exclude vehicles booked until this date
+      responses:
+        '200':
+          description: Paginated vehicle list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicles_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: >-
+                            #/components/schemas/Vehicles_API_VehicleWithRelations
+                      pagination:
+                        $ref: '#/components/schemas/Vehicles_API_Pagination'
+    post:
+      summary: Create a vehicle
+      description: Requires ADMIN role.
+      tags:
+        - Vehicles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Vehicles_API_CreateVehicleRequest'
+      responses:
+        '201':
+          description: Vehicle created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicles_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Vehicles_API_Vehicle'
+        '400':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicles_API_ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Vehicles_API_Unauthorized'
+        '403':
+          $ref: '#/components/responses/Vehicles_API_Forbidden'
+        '409':
+          description: Plate number already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicles_API_ErrorResponse'
+      security:
+        - Vehicles_API_BearerAuth: []
+  /vehicles/{id}:
+    get:
+      summary: Get vehicle by ID
+      description: Public endpoint. Includes category and active rates.
+      tags:
+        - Vehicles
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Vehicles_API_IdParam'
+      responses:
+        '200':
+          description: Vehicle detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicles_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Vehicles_API_VehicleWithRelations'
+        '404':
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicles_API_ErrorResponse'
+    patch:
+      summary: Update a vehicle
+      description: >-
+        Requires ADMIN role. Partial update — send only fields to change. Omit a
+        field to keep its current value; send null or an empty string to clear
+        an optional field.
+      tags:
+        - Vehicles
+      parameters:
+        - $ref: '#/components/parameters/Vehicles_API_IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Vehicles_API_UpdateVehicleRequest'
+      responses:
+        '200':
+          description: Vehicle updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicles_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Vehicles_API_Vehicle'
+        '400':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicles_API_ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Vehicles_API_Unauthorized'
+        '403':
+          $ref: '#/components/responses/Vehicles_API_Forbidden'
+        '404':
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicles_API_ErrorResponse'
+        '409':
+          description: Plate number already used by another vehicle
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicles_API_ErrorResponse'
+      security:
+        - Vehicles_API_BearerAuth: []
+    delete:
+      summary: Delete a vehicle
+      description: Requires ADMIN role. Fails if the vehicle has booking history.
+      tags:
+        - Vehicles
+      parameters:
+        - $ref: '#/components/parameters/Vehicles_API_IdParam'
+      responses:
+        '200':
+          description: Vehicle deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicles_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Vehicles_API_Vehicle'
+        '400':
+          description: Vehicle has booking history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicles_API_ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Vehicles_API_Unauthorized'
+        '403':
+          $ref: '#/components/responses/Vehicles_API_Forbidden'
+        '404':
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicles_API_ErrorResponse'
+      security:
+        - Vehicles_API_BearerAuth: []
+  /vehicles/{id}/rates:
+    get:
+      summary: Get vehicle rates
+      description: >-
+        Public endpoint. Returns active rates for a vehicle, sorted by duration
+        type then driver option.
+      tags:
+        - Vehicles
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Vehicles_API_IdParam'
+      responses:
+        '200':
+          description: List of rates
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicles_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Vehicles_API_VehicleRate'
+        '404':
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicles_API_ErrorResponse'
+  /vehicle-rates:
+    get:
+      summary: List vehicle rates
+      description: Requires authentication.
+      tags:
+        - Vehicle Rates
+      parameters:
+        - $ref: '#/components/parameters/Vehicle_Rates_API_PageParam'
+        - $ref: '#/components/parameters/Vehicle_Rates_API_LimitParam'
+        - name: vehicleId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by vehicle
+        - name: durationType
+          in: query
+          schema:
+            type: string
+            enum:
+              - DAILY
+              - WEEKLY
+              - MONTHLY
+          description: Filter by duration type
+        - name: withDriver
+          in: query
+          schema:
+            type: string
+            enum:
+              - 'true'
+              - 'false'
+          description: Filter by driver option
+      responses:
+        '200':
+          description: Paginated rate list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicle_Rates_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: >-
+                            #/components/schemas/Vehicle_Rates_API_RateWithVehicle
+                      pagination:
+                        $ref: '#/components/schemas/Vehicle_Rates_API_Pagination'
+        '401':
+          $ref: '#/components/responses/Vehicle_Rates_API_Unauthorized'
+      security:
+        - Vehicle_Rates_API_BearerAuth: []
+    post:
+      summary: Create a vehicle rate
+      description: Requires ADMIN role.
+      tags:
+        - Vehicle Rates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Vehicle_Rates_API_CreateRateRequest'
+      responses:
+        '201':
+          description: Rate created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicle_Rates_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Vehicle_Rates_API_VehicleRate'
+        '400':
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle_Rates_API_ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Vehicle_Rates_API_Unauthorized'
+        '403':
+          $ref: '#/components/responses/Vehicle_Rates_API_Forbidden'
+        '409':
+          description: Rate for this vehicle/duration/driver combination already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle_Rates_API_ErrorResponse'
+      security:
+        - Vehicle_Rates_API_BearerAuth: []
+  /vehicle-rates/{id}:
+    get:
+      summary: Get rate by ID
+      description: Requires authentication. Includes vehicle info.
+      tags:
+        - Vehicle Rates
+      parameters:
+        - $ref: '#/components/parameters/Vehicle_Rates_API_IdParam'
+      responses:
+        '200':
+          description: Rate detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicle_Rates_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Vehicle_Rates_API_RateWithVehicle'
+        '401':
+          $ref: '#/components/responses/Vehicle_Rates_API_Unauthorized'
+        '404':
+          description: Rate not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle_Rates_API_ErrorResponse'
+      security:
+        - Vehicle_Rates_API_BearerAuth: []
+    patch:
+      summary: Update a vehicle rate
+      description: >-
+        Requires ADMIN role. Partial update — send only fields to change. Omit a
+        field to keep its current value.
+      tags:
+        - Vehicle Rates
+      parameters:
+        - $ref: '#/components/parameters/Vehicle_Rates_API_IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Vehicle_Rates_API_UpdateRateRequest'
+      responses:
+        '200':
+          description: Rate updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicle_Rates_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Vehicle_Rates_API_VehicleRate'
+        '400':
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle_Rates_API_ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Vehicle_Rates_API_Unauthorized'
+        '403':
+          $ref: '#/components/responses/Vehicle_Rates_API_Forbidden'
+        '404':
+          description: Rate not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle_Rates_API_ErrorResponse'
+        '409':
+          description: Rate combination already used by another rate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle_Rates_API_ErrorResponse'
+      security:
+        - Vehicle_Rates_API_BearerAuth: []
+    delete:
+      summary: Delete a vehicle rate
+      description: Requires ADMIN role.
+      tags:
+        - Vehicle Rates
+      parameters:
+        - $ref: '#/components/parameters/Vehicle_Rates_API_IdParam'
+      responses:
+        '200':
+          description: Rate deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Vehicle_Rates_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Vehicle_Rates_API_VehicleRate'
+        '401':
+          $ref: '#/components/responses/Vehicle_Rates_API_Unauthorized'
+        '403':
+          $ref: '#/components/responses/Vehicle_Rates_API_Forbidden'
+        '404':
+          description: Rate not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vehicle_Rates_API_ErrorResponse'
+      security:
+        - Vehicle_Rates_API_BearerAuth: []
+  /customers:
+    get:
+      summary: List customers
+      description: Requires authentication. Paginated list, includes booking count.
+      tags:
+        - Customers
+      parameters:
+        - $ref: '#/components/parameters/Customers_API_PageParam'
+        - $ref: '#/components/parameters/Customers_API_LimitParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by name, phone, or company name
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: asc
+          description: Sort by name
+        - name: isActive
+          in: query
+          schema:
+            type: string
+            enum:
+              - 'true'
+              - 'false'
+          description: Filter by active status
+      responses:
+        '200':
+          description: Paginated customer list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Customers_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Customers_API_CustomerWithCount'
+                      pagination:
+                        $ref: '#/components/schemas/Customers_API_Pagination'
+        '401':
+          $ref: '#/components/responses/Customers_API_Unauthorized'
+      security:
+        - Customers_API_BearerAuth: []
+    post:
+      summary: Create a customer
+      description: Requires ADMIN role.
+      tags:
+        - Customers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Customers_API_CreateCustomerRequest'
+      responses:
+        '201':
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Customers_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Customers_API_Customer'
+        '401':
+          $ref: '#/components/responses/Customers_API_Unauthorized'
+        '403':
+          $ref: '#/components/responses/Customers_API_Forbidden'
+        '409':
+          description: Phone number already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customers_API_ErrorResponse'
+      security:
+        - Customers_API_BearerAuth: []
+  /customers/{id}:
+    get:
+      summary: Get customer by ID
+      description: Requires authentication. Includes booking history.
+      tags:
+        - Customers
+      parameters:
+        - $ref: '#/components/parameters/Customers_API_IdParam'
+      responses:
+        '200':
+          description: Customer detail with bookings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Customers_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/Customers_API_Customer'
+                          - type: object
+                            properties:
+                              bookings:
+                                type: array
+                                items:
+                                  $ref: >-
+                                    #/components/schemas/Customers_API_BookingRef
+        '401':
+          $ref: '#/components/responses/Customers_API_Unauthorized'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customers_API_ErrorResponse'
+      security:
+        - Customers_API_BearerAuth: []
+    patch:
+      summary: Update a customer
+      description: >-
+        Requires ADMIN role. Partial update — send only fields to change. Omit a
+        field to keep its current value; send null or an empty string to clear
+        an optional field.
+      tags:
+        - Customers
+      parameters:
+        - $ref: '#/components/parameters/Customers_API_IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Customers_API_UpdateCustomerRequest'
+      responses:
+        '200':
+          description: Customer updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Customers_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Customers_API_Customer'
+        '401':
+          $ref: '#/components/responses/Customers_API_Unauthorized'
+        '403':
+          $ref: '#/components/responses/Customers_API_Forbidden'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customers_API_ErrorResponse'
+        '409':
+          description: Phone number already used by another customer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customers_API_ErrorResponse'
+      security:
+        - Customers_API_BearerAuth: []
+    delete:
+      summary: Delete a customer
+      description: Requires ADMIN role. Fails if the customer has booking history.
+      tags:
+        - Customers
+      parameters:
+        - $ref: '#/components/parameters/Customers_API_IdParam'
+      responses:
+        '200':
+          description: Customer deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Customers_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Customers_API_Customer'
+        '400':
+          description: Customer has booking history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customers_API_ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Customers_API_Unauthorized'
+        '403':
+          $ref: '#/components/responses/Customers_API_Forbidden'
+        '404':
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customers_API_ErrorResponse'
+      security:
+        - Customers_API_BearerAuth: []
+  /bookings/estimate:
+    post:
+      summary: Estimate booking price
+      description: >-
+        Public endpoint. Server-side price calculation based on rental duration
+        and rates. Returns per-item breakdown.
+      tags:
+        - Bookings
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Bookings_API_EstimateBookingRequest'
+      responses:
+        '200':
+          description: Price estimate
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Bookings_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Bookings_API_PriceSummary'
+        '400':
+          description: Invalid dates or unknown vehicle/rate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bookings_API_ErrorResponse'
+  /bookings:
+    post:
+      summary: Create a booking
+      description: >-
+        Public endpoint. Creates a booking (PENDING) and finds or creates the
+        customer by phone. Prices are recalculated server-side.
+      tags:
+        - Bookings
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Bookings_API_CreateBookingRequest'
+      responses:
+        '201':
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Bookings_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/Bookings_API_Booking'
+                          - type: object
+                            properties:
+                              priceSummary:
+                                $ref: '#/components/schemas/Bookings_API_PriceSummary'
+        '400':
+          description: Invalid dates, customer info missing, or unknown vehicle/rate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bookings_API_ErrorResponse'
+    get:
+      summary: List bookings
+      description: Requires authentication. Paginated list with customer and vehicle items.
+      tags:
+        - Bookings
+      parameters:
+        - $ref: '#/components/parameters/Bookings_API_PageParam'
+        - $ref: '#/components/parameters/Bookings_API_LimitParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by booking code, customer name, or phone
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: desc
+          description: Sort by creation date
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - PENDING
+              - CONFIRMED
+              - ONGOING
+              - COMPLETED
+              - CANCELLED
+          description: Filter by status
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter bookings starting from this date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter bookings starting until this date
+      responses:
+        '200':
+          description: Paginated booking list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Bookings_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Bookings_API_Booking'
+                      pagination:
+                        $ref: '#/components/schemas/Bookings_API_Pagination'
+        '401':
+          $ref: '#/components/responses/Bookings_API_Unauthorized'
+      security:
+        - Bookings_API_BearerAuth: []
+  /bookings/{id}:
+    get:
+      summary: Get booking by ID
+      description: Requires authentication. Includes customer, creator, and vehicle items.
+      tags:
+        - Bookings
+      parameters:
+        - $ref: '#/components/parameters/Bookings_API_IdParam'
+      responses:
+        '200':
+          description: Booking detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Bookings_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/Bookings_API_Booking'
+                          - type: object
+                            properties:
+                              createdByUser:
+                                $ref: '#/components/schemas/Bookings_API_UserRef'
+                              items:
+                                type: array
+                                items:
+                                  allOf:
+                                    - $ref: >-
+                                        #/components/schemas/Bookings_API_BookingItem
+                                    - type: object
+                                      properties:
+                                        vehicle:
+                                          $ref: >-
+                                            #/components/schemas/Bookings_API_VehicleRef
+        '401':
+          $ref: '#/components/responses/Bookings_API_Unauthorized'
+        '404':
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bookings_API_ErrorResponse'
+      security:
+        - Bookings_API_BearerAuth: []
+    delete:
+      summary: Delete a booking
+      description: >-
+        Requires ADMIN or STAFF role. Cannot delete ONGOING or COMPLETED
+        bookings.
+      tags:
+        - Bookings
+      parameters:
+        - $ref: '#/components/parameters/Bookings_API_IdParam'
+      responses:
+        '200':
+          description: Booking deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Bookings_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Bookings_API_Booking'
+        '400':
+          description: Booking is ONGOING or COMPLETED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bookings_API_ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Bookings_API_Unauthorized'
+        '403':
+          $ref: '#/components/responses/Bookings_API_Forbidden'
+        '404':
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bookings_API_ErrorResponse'
+      security:
+        - Bookings_API_BearerAuth: []
+  /bookings/{id}/status:
+    patch:
+      summary: Update booking status
+      description: >-
+        Requires ADMIN or STAFF role. Allowed transitions:
+        PENDING->CONFIRMED/CANCELLED, CONFIRMED->ONGOING/CANCELLED,
+        ONGOING->COMPLETED.
+      tags:
+        - Bookings
+      parameters:
+        - $ref: '#/components/parameters/Bookings_API_IdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Bookings_API_UpdateStatusRequest'
+      responses:
+        '200':
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Bookings_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Bookings_API_Booking'
+        '400':
+          description: Status already set or invalid transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bookings_API_ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Bookings_API_Unauthorized'
+        '403':
+          $ref: '#/components/responses/Bookings_API_Forbidden'
+        '404':
+          description: Booking not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bookings_API_ErrorResponse'
+      security:
+        - Bookings_API_BearerAuth: []
+  /activity-logs:
+    get:
+      summary: List activity logs
+      description: Requires authentication. Paginated audit trail with the acting user.
+      tags:
+        - Activity Logs
+      parameters:
+        - $ref: '#/components/parameters/Activity_Logs_API_PageParam'
+        - $ref: '#/components/parameters/Activity_Logs_API_LimitParam'
+        - name: userId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by acting user
+        - name: action
+          in: query
+          schema:
+            type: string
+            enum:
+              - CREATE
+              - UPDATE
+              - DELETE
+              - LOGIN
+              - LOGOUT
+          description: Filter by action
+        - name: entity
+          in: query
+          schema:
+            type: string
+          description: Filter by entity (e.g. Vehicles, Bookings, Customers)
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter logs created since this date (inclusive)
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter logs created until this date (inclusive)
+      responses:
+        '200':
+          description: Paginated log list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Activity_Logs_API_ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Activity_Logs_API_ActivityLog'
+                      pagination:
+                        $ref: '#/components/schemas/Activity_Logs_API_Pagination'
+        '401':
+          $ref: '#/components/responses/Activity_Logs_API_Unauthorized'
+      security:
+        - Activity_Logs_API_BearerAuth: []
+components:
+  securitySchemes:
+    Auth_API_BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token returned by register or login
+    Vehicle_Categories_API_BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token returned by login
+    Vehicles_API_BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token returned by login
+    Vehicle_Rates_API_BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token returned by login
+    Customers_API_BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token returned by login
+    Bookings_API_BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token returned by login
+    Activity_Logs_API_BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token returned by login
+  schemas:
+    Auth_API_ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          description: Response payload
+      required:
+        - success
+        - message
+    Auth_API_ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          description: Field-level validation errors
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+        - success
+        - message
+    Auth_API_User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: User ID
+        name:
+          type: string
+          description: Full name
+        email:
+          type: string
+          format: email
+          description: Email address
+        role:
+          type: string
+          enum:
+            - ADMIN
+            - STAFF
+        isActive:
+          type: boolean
+          description: Account active status
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - email
+        - role
+        - isActive
+        - createdAt
+    Auth_API_RegisterRequest:
+      type: object
+      required:
+        - name
+        - email
+        - password
+      properties:
+        name:
+          type: string
+          minLength: 3
+          description: Full name (min 3 characters)
+        email:
+          type: string
+          format: email
+          description: Email address
+        password:
+          type: string
+          format: password
+          minLength: 6
+          description: Password (min 6 characters)
+    Auth_API_LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: Email address
+        password:
+          type: string
+          format: password
+          description: Password
+    Auth_API_AuthResult:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/Auth_API_User'
+        accessToken:
+          type: string
+          description: JWT access token
+        refreshToken:
+          type: string
+          description: JWT refresh token
+      required:
+        - user
+        - accessToken
+        - refreshToken
+    Vehicle_Categories_API_ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          description: Response payload
+      required:
+        - success
+        - message
+    Vehicle_Categories_API_ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          description: Field-level validation errors
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+        - success
+        - message
+    Vehicle_Categories_API_Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+    Vehicle_Categories_API_Category:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - isActive
+        - createdAt
+        - updatedAt
+    Vehicle_Categories_API_CategoryWithCount:
+      allOf:
+        - $ref: '#/components/schemas/Vehicle_Categories_API_Category'
+        - type: object
+          properties:
+            _count:
+              type: object
+              properties:
+                vehicles:
+                  type: integer
+              required:
+                - vehicles
+    Vehicle_Categories_API_VehicleRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        plateNumber:
+          type: string
+        isActive:
+          type: boolean
+      required:
+        - id
+        - name
+        - plateNumber
+        - isActive
+    Vehicle_Categories_API_CreateCategoryRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 3
+          description: Category name (min 3 characters)
+        description:
+          type: string
+          description: Optional description
+    Vehicle_Categories_API_UpdateCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          description: Category name (min 3 characters)
+        description:
+          type: string
+          nullable: true
+          description: Optional description. Send null or "" to clear
+        isActive:
+          type: boolean
+          description: Active status
+    Vehicles_API_ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          description: Response payload
+      required:
+        - success
+        - message
+    Vehicles_API_ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          description: Field-level validation errors
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+        - success
+        - message
+    Vehicles_API_Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+    Vehicles_API_Vehicle:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        brand:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        year:
+          type: integer
+          nullable: true
+        plateNumber:
+          type: string
+        categoryId:
+          type: string
+          format: uuid
+        transmission:
+          type: string
+          enum:
+            - MANUAL
+            - AUTOMATIC
+        fuelType:
+          type: string
+          nullable: true
+        seatingCapacity:
+          type: integer
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - plateNumber
+        - categoryId
+        - transmission
+        - isActive
+        - createdAt
+        - updatedAt
+    Vehicles_API_CategoryRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required:
+        - id
+        - name
+    Vehicles_API_VehicleRate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        vehicleId:
+          type: string
+          format: uuid
+        durationType:
+          type: string
+          enum:
+            - DAILY
+            - WEEKLY
+            - MONTHLY
+        withDriver:
+          type: boolean
+        price:
+          type: number
+          format: decimal
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - vehicleId
+        - durationType
+        - withDriver
+        - price
+        - isActive
+        - createdAt
+        - updatedAt
+    Vehicles_API_VehicleWithRelations:
+      allOf:
+        - $ref: '#/components/schemas/Vehicles_API_Vehicle'
+        - type: object
+          properties:
+            category:
+              $ref: '#/components/schemas/Vehicles_API_CategoryRef'
+            rates:
+              type: array
+              items:
+                $ref: '#/components/schemas/Vehicles_API_VehicleRate'
+          required:
+            - category
+    Vehicles_API_CreateVehicleRequest:
+      type: object
+      required:
+        - name
+        - plateNumber
+        - categoryId
+      properties:
+        name:
+          type: string
+          minLength: 2
+          description: Vehicle name (min 2 characters)
+        brand:
+          type: string
+          description: Brand (e.g. Toyota)
+        model:
+          type: string
+          description: Model (e.g. Avanza Veloz)
+        year:
+          type: integer
+          minimum: 1980
+          maximum: 2100
+          description: Production year
+        plateNumber:
+          type: string
+          minLength: 1
+          description: License plate (unique)
+        categoryId:
+          type: string
+          format: uuid
+          description: Category ID
+        transmission:
+          type: string
+          enum:
+            - MANUAL
+            - AUTOMATIC
+          default: AUTOMATIC
+        fuelType:
+          type: string
+          description: Fuel type (e.g. Bensin)
+        seatingCapacity:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Seating capacity
+        imageUrl:
+          type: string
+          format: url
+          description: Optional image URL
+    Vehicles_API_UpdateVehicleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+        brand:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        year:
+          type: integer
+          minimum: 1980
+          maximum: 2100
+          nullable: true
+        plateNumber:
+          type: string
+          minLength: 1
+        categoryId:
+          type: string
+          format: uuid
+        transmission:
+          type: string
+          enum:
+            - MANUAL
+            - AUTOMATIC
+        fuelType:
+          type: string
+          nullable: true
+        seatingCapacity:
+          type: integer
+          minimum: 1
+          maximum: 100
+          nullable: true
+        imageUrl:
+          type: string
+          format: url
+          nullable: true
+        isActive:
+          type: boolean
+      description: >-
+        Send null or "" to clear nullable fields (brand, model, year, fuelType,
+        seatingCapacity, imageUrl)
+    Vehicle_Rates_API_ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          description: Response payload
+      required:
+        - success
+        - message
+    Vehicle_Rates_API_ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          description: Field-level validation errors
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+        - success
+        - message
+    Vehicle_Rates_API_Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+    Vehicle_Rates_API_VehicleRate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        vehicleId:
+          type: string
+          format: uuid
+        durationType:
+          type: string
+          enum:
+            - DAILY
+            - WEEKLY
+            - MONTHLY
+        withDriver:
+          type: boolean
+        price:
+          type: number
+          format: decimal
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - vehicleId
+        - durationType
+        - withDriver
+        - price
+        - isActive
+        - createdAt
+        - updatedAt
+    Vehicle_Rates_API_VehicleRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        plateNumber:
+          type: string
+      required:
+        - id
+        - name
+        - plateNumber
+    Vehicle_Rates_API_RateWithVehicle:
+      allOf:
+        - $ref: '#/components/schemas/Vehicle_Rates_API_VehicleRate'
+        - type: object
+          properties:
+            vehicle:
+              $ref: '#/components/schemas/Vehicle_Rates_API_VehicleRef'
+          required:
+            - vehicle
+    Vehicle_Rates_API_CreateRateRequest:
+      type: object
+      required:
+        - vehicleId
+        - durationType
+        - price
+      properties:
+        vehicleId:
+          type: string
+          format: uuid
+          description: Vehicle ID
+        durationType:
+          type: string
+          enum:
+            - DAILY
+            - WEEKLY
+            - MONTHLY
+        withDriver:
+          type: boolean
+          default: false
+        price:
+          type: number
+          format: decimal
+          description: Price, must be greater than 0
+        isActive:
+          type: boolean
+          description: Active status
+    Vehicle_Rates_API_UpdateRateRequest:
+      type: object
+      properties:
+        vehicleId:
+          type: string
+          format: uuid
+        durationType:
+          type: string
+          enum:
+            - DAILY
+            - WEEKLY
+            - MONTHLY
+        withDriver:
+          type: boolean
+        price:
+          type: number
+          format: decimal
+          description: Price, must be greater than 0
+        isActive:
+          type: boolean
+    Customers_API_ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          description: Response payload
+      required:
+        - success
+        - message
+    Customers_API_ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          description: Field-level validation errors
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+        - success
+        - message
+    Customers_API_Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+    Customers_API_Customer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        companyName:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - phone
+        - isActive
+        - createdAt
+        - updatedAt
+    Customers_API_CustomerWithCount:
+      allOf:
+        - $ref: '#/components/schemas/Customers_API_Customer'
+        - type: object
+          properties:
+            _count:
+              type: object
+              properties:
+                bookings:
+                  type: integer
+              required:
+                - bookings
+    Customers_API_BookingRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        bookingCode:
+          type: string
+        status:
+          type: string
+          enum:
+            - PENDING
+            - CONFIRMED
+            - ONGOING
+            - COMPLETED
+            - CANCELLED
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        totalPrice:
+          type: number
+          format: decimal
+      required:
+        - id
+        - bookingCode
+        - status
+        - startDate
+        - endDate
+        - totalPrice
+    Customers_API_CreateCustomerRequest:
+      type: object
+      required:
+        - name
+        - phone
+      properties:
+        name:
+          type: string
+          minLength: 2
+          description: Customer name (min 2 characters)
+        phone:
+          type: string
+          minLength: 8
+          description: Phone number (unique, min 8 characters)
+        email:
+          type: string
+          format: email
+          description: Optional email
+        address:
+          type: string
+        companyName:
+          type: string
+        notes:
+          type: string
+    Customers_API_UpdateCustomerRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+        phone:
+          type: string
+          minLength: 8
+        email:
+          type: string
+          format: email
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        companyName:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+      description: >-
+        Send null or "" to clear nullable fields (email, address, companyName,
+        notes)
+    Bookings_API_ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          description: Response payload
+      required:
+        - success
+        - message
+    Bookings_API_ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          description: Field-level validation errors
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+        - success
+        - message
+    Bookings_API_Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+    Bookings_API_CustomerInput:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          description: Customer name (min 2 characters)
+        phone:
+          type: string
+          minLength: 8
+          description: Phone number (min 8 characters)
+        email:
+          type: string
+          format: email
+        address:
+          type: string
+        companyName:
+          type: string
+      required:
+        - name
+        - phone
+    Bookings_API_BookingItemInput:
+      type: object
+      required:
+        - vehicleId
+      properties:
+        vehicleId:
+          type: string
+          format: uuid
+          description: Vehicle ID
+        needsDriver:
+          type: boolean
+          default: false
+          description: Whether the rental includes a driver
+    Bookings_API_EstimateBookingRequest:
+      type: object
+      required:
+        - items
+        - startDate
+        - endDate
+      properties:
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Bookings_API_BookingItemInput'
+        startDate:
+          type: string
+          format: date-time
+          description: Rental start date
+        endDate:
+          type: string
+          format: date-time
+          description: Rental end date (must be after start date)
+    Bookings_API_CreateBookingRequest:
+      type: object
+      required:
+        - items
+        - startDate
+        - endDate
+      properties:
+        customerId:
+          type: string
+          format: uuid
+          description: Existing customer ID (optional if customer object provided)
+        customer:
+          $ref: '#/components/schemas/Bookings_API_CustomerInput'
+          description: Customer data (optional if customerId provided)
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/Bookings_API_BookingItemInput'
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        pickupLocation:
+          type: string
+        dropoffLocation:
+          type: string
+        needsFuel:
+          type: boolean
+          default: false
+        notes:
+          type: string
+      description: Either customerId or customer is required
+    Bookings_API_UpdateStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum:
+            - PENDING
+            - CONFIRMED
+            - ONGOING
+            - COMPLETED
+            - CANCELLED
+    Bookings_API_PriceItem:
+      type: object
+      properties:
+        vehicleId:
+          type: string
+          format: uuid
+        vehicleName:
+          type: string
+        durationType:
+          type: string
+          enum:
+            - DAILY
+            - WEEKLY
+            - MONTHLY
+        days:
+          type: integer
+          description: Number of duration units billed
+        multiplier:
+          type: number
+          description: Duration multiplier (1 for DAILY, 7 for WEEKLY, 30 for MONTHLY)
+        unitPrice:
+          type: number
+          format: decimal
+        subtotal:
+          type: number
+          format: decimal
+        needsDriver:
+          type: boolean
+      required:
+        - vehicleId
+        - vehicleName
+        - durationType
+        - days
+        - multiplier
+        - unitPrice
+        - subtotal
+        - needsDriver
+    Bookings_API_PriceSummary:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bookings_API_PriceItem'
+        basePrice:
+          type: number
+          format: decimal
+        totalPrice:
+          type: number
+          format: decimal
+      required:
+        - items
+        - basePrice
+        - totalPrice
+    Bookings_API_UserRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+      required:
+        - id
+        - name
+        - email
+    Bookings_API_CustomerRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+        companyName:
+          type: string
+          nullable: true
+      required:
+        - id
+        - name
+        - phone
+    Bookings_API_VehicleRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        plateNumber:
+          type: string
+        brand:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+      required:
+        - id
+        - name
+        - plateNumber
+    Bookings_API_BookingItem:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        bookingId:
+          type: string
+          format: uuid
+        vehicleId:
+          type: string
+          format: uuid
+        durationType:
+          type: string
+          enum:
+            - DAILY
+            - WEEKLY
+            - MONTHLY
+        days:
+          type: integer
+        unitPrice:
+          type: number
+          format: decimal
+        subtotal:
+          type: number
+          format: decimal
+      required:
+        - id
+        - bookingId
+        - vehicleId
+        - durationType
+        - days
+        - unitPrice
+        - subtotal
+    Bookings_API_Booking:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        bookingCode:
+          type: string
+          description: Unique booking code (e.g. RC-20260001)
+        customerId:
+          type: string
+          format: uuid
+        createdBy:
+          type: string
+          format: uuid
+          nullable: true
+          description: Admin/Staff user who created it (null for public bookings)
+        status:
+          type: string
+          enum:
+            - PENDING
+            - CONFIRMED
+            - ONGOING
+            - COMPLETED
+            - CANCELLED
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        pickupLocation:
+          type: string
+          nullable: true
+        dropoffLocation:
+          type: string
+          nullable: true
+        needsDriver:
+          type: boolean
+        needsFuel:
+          type: boolean
+        basePrice:
+          type: number
+          format: decimal
+        totalPrice:
+          type: number
+          format: decimal
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        customer:
+          $ref: '#/components/schemas/Bookings_API_CustomerRef'
+        items:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/Bookings_API_BookingItem'
+              - type: object
+                properties:
+                  vehicle:
+                    $ref: '#/components/schemas/Bookings_API_VehicleRef'
+      required:
+        - id
+        - bookingCode
+        - customerId
+        - status
+        - startDate
+        - endDate
+        - needsDriver
+        - needsFuel
+        - basePrice
+        - totalPrice
+        - createdAt
+        - updatedAt
+    Activity_Logs_API_ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          description: Response payload
+      required:
+        - success
+        - message
+    Activity_Logs_API_ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          description: Field-level validation errors
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+        - success
+        - message
+    Activity_Logs_API_Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+    Activity_Logs_API_ActivityLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        action:
+          type: string
+          enum:
+            - CREATE
+            - UPDATE
+            - DELETE
+            - LOGIN
+            - LOGOUT
+        entity:
+          type: string
+        entityId:
+          type: string
+          format: uuid
+          nullable: true
+        detail:
+          type: object
+          nullable: true
+          description: Additional JSON context (e.g. changed fields)
+        userName:
+          type: string
+          description: Name of the acting user
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - action
+        - entity
+        - entityId
+        - detail
+        - userName
+        - createdAt
+  parameters:
+    Vehicle_Categories_API_PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+    Vehicle_Categories_API_LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      description: Items per page
+    Vehicle_Categories_API_IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Category ID
+    Vehicles_API_PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+    Vehicles_API_LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      description: Items per page
+    Vehicles_API_IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Vehicle ID
+    Vehicle_Rates_API_PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+    Vehicle_Rates_API_LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      description: Items per page
+    Vehicle_Rates_API_IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Rate ID
+    Customers_API_PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+    Customers_API_LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      description: Items per page
+    Customers_API_IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Customer ID
+    Bookings_API_PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+    Bookings_API_LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      description: Items per page
+    Bookings_API_IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Booking ID
+    Activity_Logs_API_PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+    Activity_Logs_API_LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      description: Items per page
+  responses:
+    Vehicle_Categories_API_Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Vehicle_Categories_API_ErrorResponse'
+    Vehicle_Categories_API_Forbidden:
+      description: Insufficient role (requires ADMIN)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Vehicle_Categories_API_ErrorResponse'
+    Vehicles_API_Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Vehicles_API_ErrorResponse'
+    Vehicles_API_Forbidden:
+      description: Insufficient role (requires ADMIN)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Vehicles_API_ErrorResponse'
+    Vehicle_Rates_API_Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Vehicle_Rates_API_ErrorResponse'
+    Vehicle_Rates_API_Forbidden:
+      description: Insufficient role (requires ADMIN)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Vehicle_Rates_API_ErrorResponse'
+    Customers_API_Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Customers_API_ErrorResponse'
+    Customers_API_Forbidden:
+      description: Insufficient role (requires ADMIN)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Customers_API_ErrorResponse'
+    Bookings_API_Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Bookings_API_ErrorResponse'
+    Bookings_API_Forbidden:
+      description: Insufficient role (requires ADMIN or STAFF)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Bookings_API_ErrorResponse'
+    Activity_Logs_API_Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Activity_Logs_API_ErrorResponse'

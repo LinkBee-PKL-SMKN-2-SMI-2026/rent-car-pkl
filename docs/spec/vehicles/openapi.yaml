@@ -1,0 +1,627 @@
+openapi: 3.1.0
+info:
+  title: Vehicles API
+  version: 1.0.0
+  description: Vehicle fleet module — public catalog, availability check, and admin CRUD
+servers:
+  - url: http://localhost:3000/api
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+paths:
+  /vehicles/available:
+    get:
+      summary: List available vehicles
+      description: Public endpoint. Returns vehicles not booked (PENDING/CONFIRMED/ONGOING) for the given date range.
+      tags:
+        - Vehicles
+      security: []
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Rental start date
+        - name: endDate
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          description: Rental end date
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by category
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by name, brand, or plate number
+      responses:
+        "200":
+          description: Available vehicles
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/VehicleWithRelations"
+                      summary:
+                        type: object
+                        properties:
+                          startDate:
+                            type: string
+                            format: date-time
+                          endDate:
+                            type: string
+                            format: date-time
+                          totalAvailable:
+                            type: integer
+                        required:
+                          - startDate
+                          - endDate
+                          - totalAvailable
+        "400":
+          description: Invalid date format
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /vehicles:
+    get:
+      summary: List vehicles
+      description: Public endpoint. Paginated catalog. If startDate and endDate are provided, vehicles booked in that range are excluded.
+      tags:
+        - Vehicles
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by name, plate number, or brand
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+          description: Sort by name
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by category
+        - name: transmission
+          in: query
+          schema:
+            type: string
+            enum: [MANUAL, AUTOMATIC]
+          description: Filter by transmission
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Exclude vehicles booked since this date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Exclude vehicles booked until this date
+      responses:
+        "200":
+          description: Paginated vehicle list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/VehicleWithRelations"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+
+    post:
+      summary: Create a vehicle
+      description: Requires ADMIN role.
+      tags:
+        - Vehicles
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateVehicleRequest"
+      responses:
+        "201":
+          description: Vehicle created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Vehicle"
+        "400":
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Plate number already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /vehicles/{id}:
+    get:
+      summary: Get vehicle by ID
+      description: Public endpoint. Includes category and active rates.
+      tags:
+        - Vehicles
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Vehicle detail
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/VehicleWithRelations"
+        "404":
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      summary: Update a vehicle
+      description: Requires ADMIN role. Partial update — send only fields to change. Omit a field to keep its current value; send null or an empty string to clear an optional field.
+      tags:
+        - Vehicles
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateVehicleRequest"
+      responses:
+        "200":
+          description: Vehicle updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Vehicle"
+        "400":
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Plate number already used by another vehicle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      summary: Delete a vehicle
+      description: Requires ADMIN role. Fails if the vehicle has booking history.
+      tags:
+        - Vehicles
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Vehicle deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Vehicle"
+        "400":
+          description: Vehicle has booking history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /vehicles/{id}/rates:
+    get:
+      summary: Get vehicle rates
+      description: Public endpoint. Returns active rates for a vehicle, sorted by duration type then driver option.
+      tags:
+        - Vehicles
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: List of rates
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/VehicleRate"
+        "404":
+          description: Vehicle not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token returned by login
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      description: Items per page
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Vehicle ID
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Insufficient role (requires ADMIN)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          description: Response payload
+      required:
+        - success
+        - message
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          description: Field-level validation errors
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+        - success
+        - message
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+
+    Vehicle:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        brand:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        year:
+          type: integer
+          nullable: true
+        plateNumber:
+          type: string
+        categoryId:
+          type: string
+          format: uuid
+        transmission:
+          type: string
+          enum: [MANUAL, AUTOMATIC]
+        fuelType:
+          type: string
+          nullable: true
+        seatingCapacity:
+          type: integer
+          nullable: true
+        imageUrl:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - plateNumber
+        - categoryId
+        - transmission
+        - isActive
+        - createdAt
+        - updatedAt
+
+    CategoryRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required:
+        - id
+        - name
+
+    VehicleRate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        vehicleId:
+          type: string
+          format: uuid
+        durationType:
+          type: string
+          enum: [DAILY, WEEKLY, MONTHLY]
+        withDriver:
+          type: boolean
+        price:
+          type: number
+          format: decimal
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - vehicleId
+        - durationType
+        - withDriver
+        - price
+        - isActive
+        - createdAt
+        - updatedAt
+
+    VehicleWithRelations:
+      allOf:
+        - $ref: "#/components/schemas/Vehicle"
+        - type: object
+          properties:
+            category:
+              $ref: "#/components/schemas/CategoryRef"
+            rates:
+              type: array
+              items:
+                $ref: "#/components/schemas/VehicleRate"
+          required:
+            - category
+
+    CreateVehicleRequest:
+      type: object
+      required:
+        - name
+        - plateNumber
+        - categoryId
+      properties:
+        name:
+          type: string
+          minLength: 2
+          description: Vehicle name (min 2 characters)
+        brand:
+          type: string
+          description: Brand (e.g. Toyota)
+        model:
+          type: string
+          description: Model (e.g. Avanza Veloz)
+        year:
+          type: integer
+          minimum: 1980
+          maximum: 2100
+          description: Production year
+        plateNumber:
+          type: string
+          minLength: 1
+          description: License plate (unique)
+        categoryId:
+          type: string
+          format: uuid
+          description: Category ID
+        transmission:
+          type: string
+          enum: [MANUAL, AUTOMATIC]
+          default: AUTOMATIC
+        fuelType:
+          type: string
+          description: Fuel type (e.g. Bensin)
+        seatingCapacity:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Seating capacity
+        imageUrl:
+          type: string
+          format: url
+          description: Optional image URL
+
+    UpdateVehicleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+        brand:
+          type: string
+          nullable: true
+        model:
+          type: string
+          nullable: true
+        year:
+          type: integer
+          minimum: 1980
+          maximum: 2100
+          nullable: true
+        plateNumber:
+          type: string
+          minLength: 1
+        categoryId:
+          type: string
+          format: uuid
+        transmission:
+          type: string
+          enum: [MANUAL, AUTOMATIC]
+        fuelType:
+          type: string
+          nullable: true
+        seatingCapacity:
+          type: integer
+          minimum: 1
+          maximum: 100
+          nullable: true
+        imageUrl:
+          type: string
+          format: url
+          nullable: true
+        isActive:
+          type: boolean
+      description: Send null or "" to clear nullable fields (brand, model, year, fuelType, seatingCapacity, imageUrl)

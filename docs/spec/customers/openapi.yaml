@@ -1,0 +1,436 @@
+openapi: 3.1.0
+info:
+  title: Customers API
+  version: 1.0.0
+  description: Customer management — separate model from users, no account credentials
+servers:
+  - url: http://localhost:3000/api
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+paths:
+  /customers:
+    get:
+      summary: List customers
+      description: Requires authentication. Paginated list, includes booking count.
+      tags:
+        - Customers
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search by name, phone, or company name
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+          description: Sort by name
+        - name: isActive
+          in: query
+          schema:
+            type: string
+            enum: ["true", "false"]
+          description: Filter by active status
+      responses:
+        "200":
+          description: Paginated customer list
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/CustomerWithCount"
+                      pagination:
+                        $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      summary: Create a customer
+      description: Requires ADMIN role.
+      tags:
+        - Customers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomerRequest"
+      responses:
+        "201":
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Customer"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          description: Phone number already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /customers/{id}:
+    get:
+      summary: Get customer by ID
+      description: Requires authentication. Includes booking history.
+      tags:
+        - Customers
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Customer detail with bookings
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        allOf:
+                          - $ref: "#/components/schemas/Customer"
+                          - type: object
+                            properties:
+                              bookings:
+                                type: array
+                                items:
+                                  $ref: "#/components/schemas/BookingRef"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    patch:
+      summary: Update a customer
+      description: Requires ADMIN role. Partial update — send only fields to change. Omit a field to keep its current value; send null or an empty string to clear an optional field.
+      tags:
+        - Customers
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCustomerRequest"
+      responses:
+        "200":
+          description: Customer updated
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Customer"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Phone number already used by another customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      summary: Delete a customer
+      description: Requires ADMIN role. Fails if the customer has booking history.
+      tags:
+        - Customers
+      parameters:
+        - $ref: "#/components/parameters/IdParam"
+      responses:
+        "200":
+          description: Customer deleted
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ApiResponse"
+                  - type: object
+                    properties:
+                      data:
+                        $ref: "#/components/schemas/Customer"
+        "400":
+          description: Customer has booking history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          description: Customer not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token returned by login
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: Page number
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+      description: Items per page
+    IdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Customer ID
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Insufficient role (requires ADMIN)
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    ApiResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        data:
+          description: Response payload
+      required:
+        - success
+        - message
+
+    ErrorResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        message:
+          type: string
+        errors:
+          type: object
+          description: Field-level validation errors
+          additionalProperties:
+            type: array
+            items:
+              type: string
+      required:
+        - success
+        - message
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+        limit:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+
+    Customer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        companyName:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - phone
+        - isActive
+        - createdAt
+        - updatedAt
+
+    CustomerWithCount:
+      allOf:
+        - $ref: "#/components/schemas/Customer"
+        - type: object
+          properties:
+            _count:
+              type: object
+              properties:
+                bookings:
+                  type: integer
+              required:
+                - bookings
+
+    BookingRef:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        bookingCode:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, CONFIRMED, ONGOING, COMPLETED, CANCELLED]
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+        totalPrice:
+          type: number
+          format: decimal
+      required:
+        - id
+        - bookingCode
+        - status
+        - startDate
+        - endDate
+        - totalPrice
+
+    CreateCustomerRequest:
+      type: object
+      required:
+        - name
+        - phone
+      properties:
+        name:
+          type: string
+          minLength: 2
+          description: Customer name (min 2 characters)
+        phone:
+          type: string
+          minLength: 8
+          description: Phone number (unique, min 8 characters)
+        email:
+          type: string
+          format: email
+          description: Optional email
+        address:
+          type: string
+        companyName:
+          type: string
+        notes:
+          type: string
+
+    UpdateCustomerRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+        phone:
+          type: string
+          minLength: 8
+        email:
+          type: string
+          format: email
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        companyName:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+      description: Send null or "" to clear nullable fields (email, address, companyName, notes)
