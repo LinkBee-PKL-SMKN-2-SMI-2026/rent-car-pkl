@@ -3,7 +3,11 @@ import { PrismaClient, type Transmission } from '../../src/generated/prisma/clie
 import { PrismaPg } from '@prisma/adapter-pg';
 import { genSaltSync, hashSync } from 'bcrypt';
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
+const adapter = new PrismaPg({
+  connectionString: process.env.DATABASE_URL!,
+  family: 4,
+  connectionTimeoutMillis: 15000,
+});
 const prisma = new PrismaClient({ adapter });
 
 const salt = genSaltSync(10);
