@@ -5,6 +5,9 @@ import pinoHttp from 'pino-http';
 import routes from '../routes/index';
 import { errorHandler } from '../middlewares/errorHandler.middleware';
 import cors from 'cors';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { serveOpenApiYaml } from '../utils/docsServer';
 
 // Inisialisasi App
 const app = express();
@@ -40,6 +43,18 @@ app.use(
   },
 );
 app.use(pinoHttp({ logger })); // Default: Jangan dihapus
+
+// Documentation
+const docsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../docs/bundle');
+app.get('/docs/openapi.yaml', async (_req, res) => {
+  try {
+    res.type('text/yaml').send(await serveOpenApiYaml());
+  } catch (error) {
+    logger.error({ event: 'DOCS_YAML_FAIL', error }, 'Gagal membaca openapi.yaml');
+    res.status(500).json({ success: false, message: 'Dokumentasi tidak tersedia.' });
+  }
+});
+app.use('/docs', express.static(docsDir, { maxAge: 0 }));
 
 // Register Routes
 app.use('/api', routes);
