@@ -2,12 +2,9 @@ import 'dotenv/config';
 import { PrismaClient, type Transmission } from '../../src/generated/prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { genSaltSync, hashSync } from 'bcrypt';
+import { buildReachablePgConfig } from '../../src/utils/neonConnection';
 
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL!,
-  family: 4,
-  connectionTimeoutMillis: 15000,
-});
+const adapter = new PrismaPg(await buildReachablePgConfig(process.env.DATABASE_URL!));
 const prisma = new PrismaClient({ adapter });
 
 const salt = genSaltSync(10);
