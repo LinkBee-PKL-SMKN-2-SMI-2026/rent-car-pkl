@@ -2,8 +2,9 @@ module.exports = {
   apps: [
     {
       name: 'rent-car-app-be',
-      script: './src/app/index.ts',
-      interpreter: 'bun',
+      script: '/home/ubuntu/.bun/bin/bun',
+      args: 'src/app/index.ts',
+      interpreter: 'none',
       cwd: '/var/www/rent-car-pkl',
       instances: 1,
       exec_mode: 'fork',
