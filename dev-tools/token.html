@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ambil Token API</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: #0f172a;
+        color: #e2e8f0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+
+      .card {
+        width: 100%;
+        max-width: 640px;
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 16px;
+        padding: 32px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+      }
+
+      h1 {
+        font-size: 1.4rem;
+        margin-bottom: 4px;
+      }
+
+      .subtitle {
+        color: #94a3b8;
+        font-size: 0.85rem;
+        margin-bottom: 24px;
+      }
+
+      .field {
+        margin-bottom: 16px;
+      }
+
+      .field label {
+        display: block;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-bottom: 6px;
+        color: #cbd5e1;
+      }
+
+      select,
+      input {
+        width: 100%;
+        padding: 10px 12px;
+        font-size: 0.9rem;
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        color: #e2e8f0;
+        outline: none;
+      }
+
+      select:focus,
+      input:focus {
+        border-color: #38bdf8;
+      }
+
+      .row {
+        display: flex;
+        gap: 12px;
+        align-items: flex-end;
+      }
+
+      .row .field {
+        flex: 1;
+        margin-bottom: 0;
+      }
+
+      button {
+        padding: 10px 20px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: background 0.15s;
+      }
+
+      #fetchBtn {
+        background: #0284c7;
+        color: #fff;
+      }
+
+      #fetchBtn:hover {
+        background: #0369a1;
+      }
+
+      #fetchBtn:disabled {
+        background: #475569;
+        cursor: not-allowed;
+      }
+
+      .result {
+        margin-top: 24px;
+        display: none;
+      }
+
+      .result.visible {
+        display: block;
+      }
+
+      .user-chip {
+        display: inline-block;
+        background: #134e4a;
+        color: #5eead4;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 4px 10px;
+        border-radius: 999px;
+        margin-bottom: 12px;
+      }
+
+      .token-label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #cbd5e1;
+        margin-bottom: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .token-box {
+        position: relative;
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+      }
+
+      .token-box pre {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.72rem;
+        line-height: 1.5;
+        color: #93c5fd;
+        word-break: break-all;
+        white-space: pre-wrap;
+        max-height: 160px;
+        overflow-y: auto;
+        padding-right: 8px;
+      }
+
+      .copy-btn {
+        background: #334155;
+        color: #e2e8f0;
+        font-size: 0.75rem;
+        padding: 6px 12px;
+      }
+
+      .copy-btn:hover {
+        background: #475569;
+      }
+
+      .expiry-note {
+        font-size: 0.75rem;
+        color: #fbbf24;
+        margin-bottom: 16px;
+      }
+
+      .error {
+        display: none;
+        margin-top: 16px;
+        background: #450a0a;
+        border: 1px solid #991b1b;
+        color: #fecaca;
+        border-radius: 8px;
+        padding: 12px;
+        font-size: 0.85rem;
+      }
+
+      .error.visible {
+        display: block;
+      }
+
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(80px);
+        background: #065f46;
+        color: #d1fae5;
+        padding: 10px 18px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        opacity: 0;
+        transition: transform 0.25s, opacity 0.25s;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      .toast.show {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+      }
+
+      details {
+        font-size: 0.8rem;
+      }
+
+      details summary {
+        cursor: pointer;
+        color: #94a3b8;
+      }
+
+      details pre {
+        margin-top: 8px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.72rem;
+        line-height: 1.5;
+        color: #93c5fd;
+        word-break: break-all;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Ambil Token API</h1>
+      <p class="subtitle">
+        Login otomatis memakai akun seed, lalu salin token untuk dipakai di header
+        <code>Authorization: Bearer &lt;token&gt;</code>.
+      </p>
+
+      <div class="row">
+        <div class="field">
+          <label for="role">Pilih Role</label>
+          <select id="role">
+            <option value="admin">Admin</option>
+            <option value="staff">Staff</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="baseUrl">Base URL API</label>
+          <input id="baseUrl" type="text" spellcheck="false" autocomplete="off" />
+        </div>
+        <button id="fetchBtn">Ambil Token</button>
+      </div>
+
+      <div id="error" class="error"></div>
+
+      <div id="result" class="result">
+        <span id="userChip" class="user-chip"></span>
+
+        <div class="token-label">
+          <span>Access Token</span>
+          <button id="copyAccess" class="copy-btn">Salin</button>
+        </div>
+        <div class="token-box">
+          <pre id="accessToken"></pre>
+        </div>
+
+        <p class="expiry-note">Token berlaku ± 15 menit. Jika request mengembalikan 401, ambil token baru.</p>
+
+        <details>
+          <summary>Tampilkan Refresh Token</summary>
+          <pre id="refreshToken"></pre>
+        </details>
+      </div>
+    </div>
+
+    <div id="toast" class="toast">Tersalin ke clipboard</div>
+
+    <script>
+      const ACCOUNTS = {
+        admin: { email: 'admin@rentcar.com', password: 'admin123', label: 'Admin' },
+        staff: { email: 'staff@rentcar.com', password: 'staff123', label: 'Staff' },
+      };
+
+      const roleSelect = document.getElementById('role');
+      const baseUrlInput = document.getElementById('baseUrl');
+      const fetchBtn = document.getElementById('fetchBtn');
+      const errorBox = document.getElementById('error');
+      const resultBox = document.getElementById('result');
+      const userChip = document.getElementById('userChip');
+      const accessTokenEl = document.getElementById('accessToken');
+      const refreshTokenEl = document.getElementById('refreshToken');
+      const copyAccessBtn = document.getElementById('copyAccess');
+      const toast = document.getElementById('toast');
+
+      function defaultBaseUrl() {
+        const isHttp = location.protocol === 'http:' || location.protocol === 'https:';
+        return isHttp ? location.origin : 'http://localhost:3000';
+      }
+
+      baseUrlInput.value = defaultBaseUrl();
+
+      function showToast(message) {
+        toast.textContent = message;
+        toast.classList.add('show');
+        clearTimeout(showToast._timer);
+        showToast._timer = setTimeout(() => toast.classList.remove('show'), 1600);
+      }
+
+      function copyText(text) {
+        if (navigator.clipboard && window.isSecureContext) {
+          return navigator.clipboard.writeText(text).then(() => true, () => false);
+        }
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        let ok = false;
+        try {
+          ok = document.execCommand('copy');
+        } catch {
+          ok = false;
+        }
+        document.body.removeChild(textarea);
+        return Promise.resolve(ok);
+      }
+
+      function showError(message) {
+        errorBox.textContent = message;
+        errorBox.classList.add('visible');
+      }
+
+      function clearError() {
+        errorBox.textContent = '';
+        errorBox.classList.remove('visible');
+      }
+
+      async function getToken() {
+        clearError();
+        const account = ACCOUNTS[roleSelect.value];
+        const baseUrl = baseUrlInput.value.trim().replace(/\/+$/, '');
+
+        if (!baseUrl) {
+          showError('Base URL API tidak boleh kosong.');
+          return;
+        }
+
+        fetchBtn.disabled = true;
+        fetchBtn.textContent = 'Mengambil...';
+
+        try {
+          const response = await fetch(baseUrl + '/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: account.email, password: account.password }),
+          });
+
+          const json = await response.json().catch(() => null);
+
+          if (!response.ok) {
+            throw new Error(json?.message || `Request gagal (HTTP ${response.status})`);
+          }
+
+          const data = json?.data;
+          if (!data?.accessToken) {
+            throw new Error('Respons login tidak mengandung accessToken.');
+          }
+
+          userChip.textContent = `${data.user?.name || account.label} • ${data.user?.role || ''}`;
+          accessTokenEl.textContent = data.accessToken;
+          refreshTokenEl.textContent = data.refreshToken || '-';
+          resultBox.classList.add('visible');
+        } catch (error) {
+          resultBox.classList.remove('visible');
+          showError('Gagal mengambil token: ' + (error.message || error));
+        } finally {
+          fetchBtn.disabled = false;
+          fetchBtn.textContent = 'Ambil Token';
+        }
+      }
+
+      fetchBtn.addEventListener('click', getToken);
+
+      copyAccessBtn.addEventListener('click', async () => {
+        const ok = await copyText(accessTokenEl.textContent);
+        showToast(ok ? 'Access token tersalin' : 'Gagal menyalin, salin manual dari kotak di atas');
+      });
+    </script>
+  </body>
+</html>
